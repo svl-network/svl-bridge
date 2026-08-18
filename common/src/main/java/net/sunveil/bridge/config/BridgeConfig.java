@@ -30,10 +30,10 @@ public class BridgeConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final String DEFAULT_CONFIG_FILE = "svl-bridge.json";
 
-    private String masterApiUrl = "http://localhost:3001/api/v1/heartbeat";
+    private String masterApiUrl = "https://realms.sunveil.net/api/v1/heartbeat";
     private String masterApiToken = "svl_secret_token_2026";
     private String serverKey = "svl_demo_realm";
-    private String publicIp = "127.0.0.1";
+    private String publicIp = "java.sunveil.net";
     private int publicPort = 25565;
     private String serverName = "Sunveil Modded Server";
     private int heartbeatIntervalSeconds = 30;
@@ -94,7 +94,7 @@ public class BridgeConfig {
 
     public void validateAndSetDefaults() {
         if (masterApiUrl == null || masterApiUrl.isBlank()) {
-            masterApiUrl = "http://localhost:3001/api/v1/heartbeat";
+            masterApiUrl = "https://realms.sunveil.net/api/v1/heartbeat";
         }
         if (masterApiToken == null || masterApiToken.isBlank()) {
             masterApiToken = "svl_secret_token_2026";
@@ -103,7 +103,7 @@ public class BridgeConfig {
             serverKey = "svl_demo_realm";
         }
         if (publicIp == null || publicIp.isBlank()) {
-            publicIp = "127.0.0.1";
+            publicIp = "java.sunveil.net";
         }
         if (publicPort <= 0 || publicPort > 65535) {
             publicPort = 25565;
