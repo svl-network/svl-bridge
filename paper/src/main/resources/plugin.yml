@@ -1,7 +1,7 @@
 name: SvlBridge
 version: '${version}'
 main: net.sunveil.bridge.paper.SvlBridgePlugin
-api-version: '1.21'
+api-version: '1.19'
 author: Sunveil Network
 description: >-
   Proprietary bridge component for Sunveil Connect.

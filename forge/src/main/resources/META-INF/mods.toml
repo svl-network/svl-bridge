@@ -12,13 +12,13 @@ description="Proprietary bridge component for Sunveil Connect. Redistribution pr
 [[dependencies.svl_bridge]]
     modId="forge"
     mandatory=true
-    versionRange="[1,)"
+    versionRange="[44,)"
     ordering="NONE"
     side="SERVER"
 
 [[dependencies.svl_bridge]]
     modId="minecraft"
     mandatory=true
-    versionRange="[1.21.1,)"
+    versionRange="[1.19.4,)"
     ordering="NONE"
     side="SERVER"

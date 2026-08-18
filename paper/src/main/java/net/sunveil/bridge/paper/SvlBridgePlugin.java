@@ -71,7 +71,16 @@ public class SvlBridgePlugin extends JavaPlugin {
 
     private void sendHeartbeat() {
         try {
-            String mcVersion = Bukkit.getMinecraftVersion();
+            String mcVersion = "1.21.1";
+            try {
+                mcVersion = Bukkit.getServer().getMinecraftVersion();
+            } catch (Throwable ignored) {
+                try {
+                    mcVersion = Bukkit.getBukkitVersion().split("-")[0];
+                } catch (Throwable fallback) {
+                    mcVersion = "1.21.1";
+                }
+            }
             if (mcVersion == null || mcVersion.isBlank()) {
                 mcVersion = "1.21.1";
             }
