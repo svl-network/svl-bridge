@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+base {
+    archivesName = 'svl-bridge-common'
+}
+
+dependencies {
+    api "com.google.code.gson:gson:2.10.1"
+    compileOnly "org.slf4j:slf4j-api:2.0.13"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testImplementation "org.slf4j:slf4j-simple:2.0.13"
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "svl-bridge",
+  "version": "${version}",
+  "name": "SVL Bridge (Fabric)",
+  "description": "Proprietary bridge component for Sunveil Connect. Redistribution prohibited.",
+  "authors": [
+    "Sunveil Network"
+  ],
+  "contact": {
+    "homepage": "https://realms.sunveil.net"
+  },
+  "license": "LicenseRef-Sunveil-Proprietary",
+  "environment": "server",
+  "entrypoints": {
+    "server": [
+      "net.sunveil.bridge.fabric.SvlBridgeFabric"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}

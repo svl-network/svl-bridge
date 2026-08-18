@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+}
+
+base {
+    archivesName = 'svl-bridge-paper'
+}
+
+dependencies {
+    implementation project(':common')
+    compileOnly "io.papermc.paper:paper-api:${project.paper_version}"
+}
+
+jar {
+    // Include all compiled classes and resources from the common module into the paper plugin jar
+    from project(':common').sourceSets.main.output
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("plugin.yml") {
+        expand "version": project.version
+    }
+    filesMatching("paper-plugin.yml") {
+        expand "version": project.version
+    }
+}

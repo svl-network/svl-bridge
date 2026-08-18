@@ -1,0 +1,41 @@
+# Environment & Secrets
+.env
+.env.*
+.env.local
+.env.production
+!.env.example
+
+# Gradle & Build outputs
+.gradle/
+build/
+bin/
+out/
+target/
+*.jar
+*.war
+*.ear
+
+# Run & Test artifacts
+run/
+logs/
+*.log
+*.log.gz
+hs_err_pid*
+replay_pid*
+
+# Local data & databases
+data/
+*.sqlite
+*.sqlite-journal
+
+# IDE & OS files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.project
+.classpath
+.settings/
+.DS_Store
+Thumbs.db

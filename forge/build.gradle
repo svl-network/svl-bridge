@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+}
+
+base {
+    archivesName = 'svl-bridge-forge'
+}
+
+repositories {
+    maven {
+        name = 'MinecraftForge'
+        url = 'https://maven.minecraftforge.net/'
+    }
+}
+
+dependencies {
+    implementation project(':common')
+    compileOnly "net.minecraftforge:forge:${project.forge_version}:universal"
+    compileOnly "net.minecraftforge:javafmllanguage:${project.forge_version}"
+    compileOnly "net.minecraftforge:eventbus:7.0.5"
+    compileOnly "net.minecraftforge:fmlcore:${project.forge_version}"
+    compileOnly "net.minecraftforge:fmlloader:${project.forge_version}"
+    compileOnly "net.minecraftforge:forgespi:8.0.0"
+    compileOnly "org.slf4j:slf4j-api:2.0.13"
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("META-INF/mods.toml") {
+        expand "version": project.version
+    }
+}

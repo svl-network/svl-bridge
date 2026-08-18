@@ -1,0 +1,11 @@
+name: SvlBridge
+version: '${version}'
+main: net.sunveil.bridge.paper.SvlBridgePlugin
+api-version: '1.21'
+author: Sunveil Network
+description: >-
+  Proprietary bridge component for Sunveil Connect.
+  Redistribution prohibited. See LICENSE for terms.
+website: https://realms.sunveil.net
+prefix: SVL-Bridge
+open-class-loader: true

@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="Proprietary — See LICENSE"
+
+[[mods]]
+modId="svl_bridge"
+version="${version}"
+displayName="SVL Bridge (NeoForge)"
+authors="Sunveil Network"
+description='''Proprietary bridge component for Sunveil Connect. Redistribution prohibited.'''
+
+[[dependencies.svl_bridge]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.0,)"
+    ordering="NONE"
+    side="SERVER"
+
+[[dependencies.svl_bridge]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1,1.21.2)"
+    ordering="NONE"
+    side="SERVER"
