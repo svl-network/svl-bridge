@@ -176,24 +176,21 @@ public class ModrinthService {
                     for (JsonElement fileElem : files) {
                         if (fileElem.isJsonObject()) {
                             JsonObject fileObj = fileElem.getAsJsonObject();
-                            String candidateUrl = fileObj.has("url") && !fileObj.get("url").isJsonNull()
-                                    ? fileObj.get("url").getAsString() : null;
-                            String candidateFileName = fileObj.has("filename") && !fileObj.get("filename").isJsonNull()
-                                    ? fileObj.get("filename").getAsString() : null;
+                            JsonObject h = fileObj.has("hashes") && fileObj.get("hashes").isJsonObject() ? fileObj.getAsJsonObject("hashes") : null;
+                            String fileSha512 = h != null && h.has("sha512") && !h.get("sha512").isJsonNull() ? h.get("sha512").getAsString() : null;
+                            boolean isPrimary = fileObj.has("primary") && !fileObj.get("primary").isJsonNull() && fileObj.get("primary").getAsBoolean();
 
-                            String candidateSha256 = null;
-                            if (fileObj.has("hashes") && fileObj.get("hashes").isJsonObject()) {
-                                JsonObject h = fileObj.getAsJsonObject("hashes");
-                                if (h.has("sha256") && !h.get("sha256").isJsonNull()) {
-                                    candidateSha256 = h.get("sha256").getAsString();
+                            if (hash.equalsIgnoreCase(fileSha512) || (downloadUrl == null && isPrimary) || (downloadUrl == null && files.size() == 1)) {
+                                downloadUrl = fileObj.has("url") && !fileObj.get("url").isJsonNull() ? fileObj.get("url").getAsString() : null;
+                                if (fileObj.has("filename") && !fileObj.get("filename").isJsonNull()) {
+                                    fileName = fileObj.get("filename").getAsString();
                                 }
-                            }
-
-                            if (candidateUrl != null) {
-                                downloadUrl = candidateUrl;
-                                if (candidateFileName != null) fileName = candidateFileName;
-                                if (candidateSha256 != null) sha256 = candidateSha256;
-                                break;
+                                if (h != null && h.has("sha256") && !h.get("sha256").isJsonNull()) {
+                                    sha256 = h.get("sha256").getAsString();
+                                }
+                                if (hash.equalsIgnoreCase(fileSha512)) {
+                                    break;
+                                }
                             }
                         }
                     }
