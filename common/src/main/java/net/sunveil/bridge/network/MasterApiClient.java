@@ -176,19 +176,19 @@ public class MasterApiClient {
             }
 
             HttpRequest request = requestBuilder.build();
-            LOGGER.debug("Sending heartbeat to '{}' ({} items)...", apiUrl, payload.getMods().size());
+            LOGGER.info("[SVL-Bridge] Sending heartbeat to '{}' ({} mods registered)...", apiUrl, payload.getMods().size());
 
             return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenApply(response -> {
                         int code = response.statusCode();
                         if (code >= 200 && code < 300) {
-                            LOGGER.debug("Heartbeat successfully received by Master API (HTTP {}). Response: {}", code, response.body());
+                            LOGGER.info("[SVL-Bridge] Heartbeat successfully accepted by Master API (HTTP {}). Server is ONLINE!", code);
                             return true;
                         } else if (code == 401 || code == 403) {
-                            LOGGER.error("Master API rejected heartbeat due to authentication failure (HTTP {}). Check masterApiToken in config.", code);
+                            LOGGER.error("[SVL-Bridge] Master API rejected heartbeat (HTTP {}). Check masterApiToken in config: {}", code, response.body());
                             return false;
                         } else {
-                            LOGGER.warn("Master API returned non-OK status: HTTP {} - {}", code, response.body());
+                            LOGGER.warn("[SVL-Bridge] Master API returned non-OK status: HTTP {} - {}", code, response.body());
                             return false;
                         }
                     })
