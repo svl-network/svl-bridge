@@ -33,7 +33,7 @@ public class BridgeConfig {
     private String masterApiUrl = "https://realms.sunveil.net/api/v1/heartbeat";
     private String masterApiToken = "svl_secret_token_2026";
     private String serverKey = "svl_demo_realm";
-    private String publicIp = "java.sunveil.net";
+    private String publicIp = "auto";
     private int publicPort = 25565;
     private String serverName = "Sunveil Modded Server";
     private int heartbeatIntervalSeconds = 30;
@@ -102,8 +102,8 @@ public class BridgeConfig {
         if (serverKey == null || serverKey.isBlank()) {
             serverKey = "svl_demo_realm";
         }
-        if (publicIp == null || publicIp.isBlank()) {
-            publicIp = "java.sunveil.net";
+        if (publicIp == null || publicIp.isBlank() || "java.sunveil.net".equalsIgnoreCase(publicIp)) {
+            publicIp = "auto";
         }
         if (publicPort <= 0 || publicPort > 65535) {
             publicPort = 25565;

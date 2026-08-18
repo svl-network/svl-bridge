@@ -69,49 +69,73 @@ public class ModrinthService {
             return CompletableFuture.completedFuture(this.cachedManifest);
         }
 
-        List<String> sha512Hashes = scannedMods.stream()
-                .map(ModScanner.ScannedMod::sha512)
-                .toList();
+        // Chunk hashes in batches of 80 to strictly adhere to Modrinth API batch limits (<100)
+        final int BATCH_SIZE = 80;
+        List<List<ModScanner.ScannedMod>> batches = new ArrayList<>();
+        for (int i = 0; i < scannedMods.size(); i += BATCH_SIZE) {
+            batches.add(scannedMods.subList(i, Math.min(i + BATCH_SIZE, scannedMods.size())));
+        }
 
-        JsonObject requestBodyJson = new JsonObject();
-        JsonArray hashesArray = new JsonArray();
-        sha512Hashes.forEach(hashesArray::add);
-        requestBodyJson.add("hashes", hashesArray);
-        requestBodyJson.addProperty("algorithm", "sha512");
+        LOGGER.info("Querying Modrinth API for {} file hash(es) across {} batch(es)...", scannedMods.size(), batches.size());
 
-        String bodyString = gson.toJson(requestBodyJson);
+        List<CompletableFuture<JsonObject>> batchFutures = new ArrayList<>();
+        for (List<ModScanner.ScannedMod> batch : batches) {
+            JsonObject requestBodyJson = new JsonObject();
+            JsonArray hashesArray = new JsonArray();
+            batch.forEach(m -> hashesArray.add(m.sha512()));
+            requestBodyJson.add("hashes", hashesArray);
+            requestBodyJson.addProperty("algorithm", "sha512");
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(MODRINTH_VERSION_FILES_URL))
-                .header("Content-Type", "application/json")
-                .header("User-Agent", USER_AGENT)
-                .timeout(Duration.ofSeconds(15))
-                .POST(HttpRequest.BodyPublishers.ofString(bodyString))
-                .build();
+            String bodyString = gson.toJson(requestBodyJson);
 
-        LOGGER.info("Querying Modrinth API for {} file hash(es)...", sha512Hashes.size());
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(MODRINTH_VERSION_FILES_URL))
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", USER_AGENT)
+                    .timeout(Duration.ofSeconds(20))
+                    .POST(HttpRequest.BodyPublishers.ofString(bodyString))
+                    .build();
 
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
-                    if (response.statusCode() != 200) {
-                        LOGGER.error("Modrinth API returned error status {}: {}", response.statusCode(), response.body());
-                        return buildFallbackManifest(scannedMods);
+            CompletableFuture<JsonObject> future = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenApply(response -> {
+                        if (response.statusCode() == 200) {
+                            try {
+                                return JsonParser.parseString(response.body()).getAsJsonObject();
+                            } catch (Exception ignored) {}
+                        } else {
+                            LOGGER.warn("Modrinth API batch returned status {}: {}", response.statusCode(), response.body());
+                        }
+                        return new JsonObject();
+                    })
+                    .exceptionally(t -> {
+                        LOGGER.error("Modrinth batch request failed: {}", t.getMessage());
+                        return new JsonObject();
+                    });
+
+            batchFutures.add(future);
+        }
+
+        return CompletableFuture.allOf(batchFutures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> {
+                    JsonObject combinedRoot = new JsonObject();
+                    for (CompletableFuture<JsonObject> bf : batchFutures) {
+                        JsonObject res = bf.join();
+                        if (res != null) {
+                            for (Map.Entry<String, JsonElement> entry : res.entrySet()) {
+                                combinedRoot.add(entry.getKey(), entry.getValue());
+                            }
+                        }
                     }
 
-                    try {
-                        List<ModManifestEntry> entries = parseModrinthResponse(response.body(), scannedMods);
-                        this.cachedManifest = Collections.unmodifiableList(entries);
-                        LOGGER.info("Successfully resolved {}/{} official item(s) from Modrinth API.",
-                                entries.stream().filter(e -> "official".equals(e.getTier()) && e.getDownloadUrl() != null).count(),
-                                scannedMods.size());
-                        return this.cachedManifest;
-                    } catch (Exception e) {
-                        LOGGER.error("Failed to parse Modrinth API response.", e);
-                        return buildFallbackManifest(scannedMods);
-                    }
+                    List<ModManifestEntry> entries = parseModrinthResponse(combinedRoot, scannedMods);
+                    this.cachedManifest = Collections.unmodifiableList(entries);
+                    LOGGER.info("Successfully resolved {}/{} official item(s) from Modrinth API.",
+                            entries.stream().filter(e -> "official".equals(e.getTier()) && e.getDownloadUrl() != null).count(),
+                            scannedMods.size());
+                    return this.cachedManifest;
                 })
                 .exceptionally(throwable -> {
-                    LOGGER.error("HTTP request to Modrinth API failed.", throwable);
+                    LOGGER.error("HTTP request batching to Modrinth API failed.", throwable);
                     return buildFallbackManifest(scannedMods);
                 });
     }
@@ -154,8 +178,7 @@ public class ModrinthService {
         });
     }
 
-    private List<ModManifestEntry> parseModrinthResponse(String responseBody, List<ModScanner.ScannedMod> scannedMods) {
-        JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+    private List<ModManifestEntry> parseModrinthResponse(JsonObject root, List<ModScanner.ScannedMod> scannedMods) {
         List<ModManifestEntry> resultList = new ArrayList<>();
 
         for (ModScanner.ScannedMod scanned : scannedMods) {
