@@ -15,9 +15,9 @@ repositories {
 
 dependencies {
     implementation project(':common')
-    compileOnly "net.neoforged:neoforge:20.4.237:universal"
-    compileOnly "net.neoforged.fancymodloader:loader:2.0.21"
-    compileOnly "net.neoforged:bus:7.2.0"
+    compileOnly "net.neoforged:neoforge:21.1.70:universal"
+    compileOnly "net.neoforged.fancymodloader:loader:4.0.24"
+    compileOnly "net.neoforged:bus:8.0.2"
     compileOnly "org.slf4j:slf4j-api:2.0.13"
 }
 

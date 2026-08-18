@@ -43,6 +43,14 @@ subprojects {
         options.release = 21
     }
 
+    tasks.withType(Copy).configureEach {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+
+    tasks.withType(Jar).configureEach {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
     }

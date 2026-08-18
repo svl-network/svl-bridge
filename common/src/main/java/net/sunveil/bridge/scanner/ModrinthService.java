@@ -129,34 +129,28 @@ public class ModrinthService {
                 .collect(Collectors.toMap(ModScanner.ScannedMod::sha256, Function.identity(), (a, b) -> a));
 
         return resolveModsAsync(scannedMods).thenCompose(initialEntries -> {
-            List<CompletableFuture<ModManifestEntry>> uploadFutures = new ArrayList<>();
-
-            for (ModManifestEntry entry : initialEntries) {
-                if (entry.getDownloadUrl() == null || entry.getDownloadUrl().isBlank()) {
-                    ModScanner.ScannedMod scanned = scannedMap.get(entry.getSha256());
-                    if (scanned != null && masterClient != null && masterApiUrl != null) {
-                        LOGGER.info("Resolving Tier 2 community storage for unlisted mod: {}", scanned.fileName());
-                        CompletableFuture<ModManifestEntry> future = masterClient.ensureModHostedAsync(masterApiUrl, masterApiToken, scanned)
-                                .thenApply(selfHostedUrl -> {
+            return CompletableFuture.supplyAsync(() -> {
+                for (ModManifestEntry entry : initialEntries) {
+                    if (entry.getDownloadUrl() == null || entry.getDownloadUrl().isBlank()) {
+                        ModScanner.ScannedMod scanned = scannedMap.get(entry.getSha256());
+                        if (scanned != null && masterClient != null && masterApiUrl != null) {
+                            LOGGER.info("Resolving Tier 2 community storage for unlisted mod: {}", scanned.fileName());
+                            try {
+                                String selfHostedUrl = masterClient.ensureModHostedAsync(masterApiUrl, masterApiToken, scanned).join();
+                                if (selfHostedUrl != null && !selfHostedUrl.isBlank()) {
                                     entry.setDownloadUrl(selfHostedUrl);
                                     entry.setTier("community");
-                                    return entry;
-                                });
-                        uploadFutures.add(future);
-                        continue;
+                                }
+                                Thread.sleep(60); // Gentle 60ms pacing to avoid bursting Cloudflare/rate-limiters
+                            } catch (Exception e) {
+                                LOGGER.warn("Could not self-host community mod {}: {}", scanned.fileName(), e.getMessage());
+                            }
+                        }
                     }
                 }
-                uploadFutures.add(CompletableFuture.completedFuture(entry));
-            }
-
-            return CompletableFuture.allOf(uploadFutures.toArray(new CompletableFuture[0]))
-                    .thenApply(v -> {
-                        List<ModManifestEntry> finalEntries = uploadFutures.stream()
-                                .map(CompletableFuture::join)
-                                .toList();
-                        this.cachedManifest = Collections.unmodifiableList(finalEntries);
-                        return this.cachedManifest;
-                    });
+                this.cachedManifest = Collections.unmodifiableList(initialEntries);
+                return this.cachedManifest;
+            });
         });
     }
 

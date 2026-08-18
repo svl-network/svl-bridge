@@ -1,0 +1,9 @@
+{
+  "pack": {
+    "description": "Sunveil Bridge Resources",
+    "pack_format": 15,
+    "forge:server_data_pack_format": 15,
+    "forge:data_pack_format": 15,
+    "forge:resource_pack_format": 15
+  }
+}
