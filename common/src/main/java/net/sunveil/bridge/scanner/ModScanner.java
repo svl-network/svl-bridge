@@ -45,10 +45,14 @@ public class ModScanner {
         AUTO
     }
 
-    public record ScannedMod(Path path, String fileName, String sha512, String sha256) {}
+    public record ScannedMod(Path path, String fileName, String sha512, String sha256, String targetFolder) {
+        public ScannedMod(Path path, String fileName, String sha512, String sha256) {
+            this(path, fileName, sha512, sha256, "mods");
+        }
+    }
 
     /**
-     * Scans for mod/plugin jars based on the platform type and server root directory.
+     * Scans for mods, plugins, shaderpacks and resourcepacks based on the platform type and server root directory.
      */
     public List<ScannedMod> scanPlatform(Path serverRoot, PlatformType platform) {
         if (serverRoot == null) {
@@ -58,6 +62,8 @@ public class ModScanner {
         List<Path> targetDirs = new ArrayList<>();
         Path modsDir = serverRoot.resolve("mods");
         Path pluginsDir = serverRoot.resolve("plugins");
+        Path shaderpacksDir = serverRoot.resolve("shaderpacks");
+        Path resourcepacksDir = serverRoot.resolve("resourcepacks");
 
         switch (platform) {
             case FABRIC, NEOFORGE, FORGE -> {
@@ -81,11 +87,21 @@ public class ModScanner {
             }
         }
 
+        // Always scan shaderpacks and resourcepacks if present on the server
+        if (Files.exists(shaderpacksDir)) {
+            LOGGER.info("Detected shaderpacks directory: syncing server shaderpacks to client.");
+            targetDirs.add(shaderpacksDir);
+        }
+        if (Files.exists(resourcepacksDir)) {
+            LOGGER.info("Detected resourcepacks directory: syncing server resourcepacks to client.");
+            targetDirs.add(resourcepacksDir);
+        }
+
         return scanDirectories(targetDirs.toArray(new Path[0]));
     }
 
     /**
-     * Scans the specified directories for jar files and computes SHA-512 and SHA-256 hashes.
+     * Scans the specified directories for jar and zip files and computes SHA-512 and SHA-256 hashes.
      * Enforces path canonicalization and sandbox containment to defend against directory traversal.
      */
     public List<ScannedMod> scanDirectories(Path... dirs) {
@@ -109,26 +125,37 @@ public class ModScanner {
                 canonicalDir = dir.toAbsolutePath().normalize();
             }
 
-            LOGGER.info("Scanning directory: {}", canonicalDir);
+            String folderName = canonicalDir.getFileName() != null ? canonicalDir.getFileName().toString().toLowerCase() : "mods";
+            String targetFolder = switch (folderName) {
+                case "shaderpacks" -> "shaderpacks";
+                case "resourcepacks" -> "resourcepacks";
+                case "config" -> "config";
+                default -> "mods";
+            };
 
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(canonicalDir, "*.jar")) {
-                for (Path jarPath : stream) {
-                    if (Files.isRegularFile(jarPath)) {
-                        Path realJarPath;
+            LOGGER.info("Scanning directory: {} (targetFolder: {})", canonicalDir, targetFolder);
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(canonicalDir, p -> {
+                String name = p.getFileName().toString().toLowerCase();
+                return name.endsWith(".jar") || name.endsWith(".zip");
+            })) {
+                for (Path filePath : stream) {
+                    if (Files.isRegularFile(filePath)) {
+                        Path realFilePath;
                         try {
-                            realJarPath = jarPath.toRealPath();
+                            realFilePath = filePath.toRealPath();
                         } catch (IOException e) {
-                            realJarPath = jarPath.toAbsolutePath().normalize();
+                            realFilePath = filePath.toAbsolutePath().normalize();
                         }
 
                         // Sandbox check: Ensure file resides strictly within target directory
-                        if (!realJarPath.startsWith(canonicalDir)) {
+                        if (!realFilePath.startsWith(canonicalDir)) {
                             LOGGER.warn("SECURITY WARNING: File '{}' points outside designated folder '{}'. Skipping.",
-                                    jarPath, canonicalDir);
+                                    filePath, canonicalDir);
                             continue;
                         }
 
-                        String fileName = realJarPath.getFileName().toString();
+                        String fileName = realFilePath.getFileName().toString();
 
                         if (isSelfMod(fileName)) {
                             LOGGER.debug("Skipping bridge self jar: {}", fileName);
@@ -136,14 +163,14 @@ public class ModScanner {
                         }
 
                         try {
-                            Hashes hashes = computeHashes(realJarPath);
+                            Hashes hashes = computeHashes(realFilePath);
                             if (seenSha256.add(hashes.sha256())) {
-                                scannedMods.add(new ScannedMod(realJarPath, fileName, hashes.sha512(), hashes.sha256()));
-                                LOGGER.debug("Scanned jar: {} (SHA-256: {}, SHA-512: {}...)",
-                                        fileName, hashes.sha256(), hashes.sha512().substring(0, 16));
+                                scannedMods.add(new ScannedMod(realFilePath, fileName, hashes.sha512(), hashes.sha256(), targetFolder));
+                                LOGGER.debug("Scanned file: {} in {} (SHA-256: {}, SHA-512: {}...)",
+                                        fileName, targetFolder, hashes.sha256(), hashes.sha512().substring(0, 16));
                             }
                         } catch (IOException | NoSuchAlgorithmException e) {
-                            LOGGER.error("Failed to compute hashes for jar '{}'.", realJarPath, e);
+                            LOGGER.error("Failed to compute hashes for file '{}'.", realFilePath, e);
                         }
                     }
                 }
@@ -152,7 +179,7 @@ public class ModScanner {
             }
         }
 
-        LOGGER.info("Completed scan across {} directory/directories. Found {} unique jar(s).",
+        LOGGER.info("Completed scan across {} directory/directories. Found {} unique file(s).",
                 dirs.length, scannedMods.size());
         return scannedMods;
     }

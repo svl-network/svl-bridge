@@ -219,12 +219,12 @@ public class ModrinthService {
                     }
                 }
 
-                resultList.add(new ModManifestEntry(projectId, fileName, sha256, downloadUrl, "official"));
-                LOGGER.debug("Resolved Modrinth item: project='{}', file='{}', url='{}'", projectId, fileName, downloadUrl);
+                resultList.add(new ModManifestEntry(projectId, fileName, sha256, downloadUrl, "official", scanned.targetFolder()));
+                LOGGER.debug("Resolved Modrinth item: project='{}', file='{}', folder='{}', url='{}'", projectId, fileName, scanned.targetFolder(), downloadUrl);
             } else {
-                LOGGER.warn("File '{}' (SHA-512: {}) not on Modrinth (marked for Tier 2 fallback).", scanned.fileName(), hash);
-                String fallbackId = scanned.fileName().replaceAll("\\.jar$", "");
-                resultList.add(new ModManifestEntry(fallbackId, scanned.fileName(), scanned.sha256(), null, "community"));
+                LOGGER.warn("File '{}' (folder: {}, SHA-512: {}) not on Modrinth (marked for Tier 2 fallback).", scanned.fileName(), scanned.targetFolder(), hash);
+                String fallbackId = scanned.fileName().replaceAll("\\.(jar|zip)$", "");
+                resultList.add(new ModManifestEntry(fallbackId, scanned.fileName(), scanned.sha256(), null, "community", scanned.targetFolder()));
             }
         }
 
@@ -234,8 +234,8 @@ public class ModrinthService {
     private List<ModManifestEntry> buildFallbackManifest(List<ModScanner.ScannedMod> scannedMods) {
         List<ModManifestEntry> fallback = new ArrayList<>();
         for (ModScanner.ScannedMod mod : scannedMods) {
-            String fallbackId = mod.fileName().replaceAll("\\.jar$", "");
-            fallback.add(new ModManifestEntry(fallbackId, mod.fileName(), mod.sha256(), null, "community"));
+            String fallbackId = mod.fileName().replaceAll("\\.(jar|zip)$", "");
+            fallback.add(new ModManifestEntry(fallbackId, mod.fileName(), mod.sha256(), null, "community", mod.targetFolder()));
         }
         this.cachedManifest = Collections.unmodifiableList(fallback);
         return this.cachedManifest;

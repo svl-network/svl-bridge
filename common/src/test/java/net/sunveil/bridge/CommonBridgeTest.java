@@ -46,7 +46,7 @@ public class CommonBridgeTest {
         assertEquals("https://realms.sunveil.net/api/v1/heartbeat", config.getMasterApiUrl());
         assertEquals("svl_secret_token_2026", config.getMasterApiToken());
         assertEquals("svl_demo_realm", config.getServerKey());
-        assertEquals("java.sunveil.net", config.getPublicIp());
+        assertEquals("auto", config.getPublicIp());
         assertEquals(25565, config.getPublicPort());
         assertEquals("Sunveil Modded Server", config.getServerName());
         assertEquals(30, config.getHeartbeatIntervalSeconds());

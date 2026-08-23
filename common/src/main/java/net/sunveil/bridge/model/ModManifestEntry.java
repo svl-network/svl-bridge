@@ -33,19 +33,27 @@ public class ModManifestEntry {
     @SerializedName("tier")
     private String tier = "official";
 
+    @SerializedName("targetFolder")
+    private String targetFolder = "mods";
+
     public ModManifestEntry() {
     }
 
     public ModManifestEntry(String projectId, String fileName, String sha256, String downloadUrl) {
-        this(projectId, fileName, sha256, downloadUrl, "official");
+        this(projectId, fileName, sha256, downloadUrl, "official", "mods");
     }
 
     public ModManifestEntry(String projectId, String fileName, String sha256, String downloadUrl, String tier) {
+        this(projectId, fileName, sha256, downloadUrl, tier, "mods");
+    }
+
+    public ModManifestEntry(String projectId, String fileName, String sha256, String downloadUrl, String tier, String targetFolder) {
         this.projectId = projectId;
         this.fileName = fileName;
         this.sha256 = sha256;
         this.downloadUrl = downloadUrl;
         this.tier = tier != null ? tier : "official";
+        this.targetFolder = targetFolder != null && !targetFolder.isBlank() ? targetFolder : "mods";
     }
 
     public String getProjectId() {
@@ -86,6 +94,14 @@ public class ModManifestEntry {
 
     public void setTier(String tier) {
         this.tier = tier;
+    }
+
+    public String getTargetFolder() {
+        return targetFolder;
+    }
+
+    public void setTargetFolder(String targetFolder) {
+        this.targetFolder = targetFolder != null && !targetFolder.isBlank() ? targetFolder : "mods";
     }
 
     @Override
