@@ -1,0 +1,55 @@
+name: Build and Release Sunveil Bridge
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Multi-Platform Bridge Jars
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: Make Gradle Wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build all jars
+        run: ./gradlew build -x test
+
+      - name: Prepare Release Artifacts
+        run: |
+          mkdir -p release-jars
+          cp fabric/build/libs/svl-bridge-fabric-*.jar release-jars/svl-bridge-fabric.jar 2>/dev/null || true
+          cp forge/build/libs/svl-bridge-forge-*.jar release-jars/svl-bridge-forge.jar 2>/dev/null || true
+          cp forge-1.20.1/build/libs/svl-bridge-forge-1.20.1-*.jar release-jars/svl-bridge-forge-1.20.1.jar 2>/dev/null || true
+          cp neoforge/build/libs/svl-bridge-neoforge-*.jar release-jars/svl-bridge-neoforge.jar 2>/dev/null || true
+          cp neoforge-1.20.4/build/libs/svl-bridge-neoforge-1.20.4-*.jar release-jars/svl-bridge-neoforge-1.20.4.jar 2>/dev/null || true
+          cp paper/build/libs/svl-bridge-paper-*.jar release-jars/svl-bridge-paper.jar 2>/dev/null || true
+          ls -la release-jars/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "Sunveil Bridge ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-jars/*.jar
