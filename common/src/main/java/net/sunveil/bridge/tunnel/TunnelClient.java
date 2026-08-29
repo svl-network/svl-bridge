@@ -108,7 +108,13 @@ public class TunnelClient implements WebSocket.Listener {
                     .buildAsync(URI.create(fullUrl), this)
                     .whenComplete((ws, err) -> {
                         if (err != null) {
-                            LOGGER.warn("[SVL-Tunnel] Could not connect to Tunnel Relay ({}). Retrying in 10s...", err.getMessage());
+                            Throwable root = (err instanceof java.util.concurrent.CompletionException && err.getCause() != null) ? err.getCause() : err;
+                            if (root instanceof java.net.http.WebSocketHandshakeException handshakeEx) {
+                                int status = handshakeEx.getResponse() != null ? handshakeEx.getResponse().statusCode() : -1;
+                                LOGGER.warn("[SVL-Tunnel] Could not connect to Tunnel Relay (HTTP {} Handshake Failed). Retrying in 10s...", status);
+                            } else {
+                                LOGGER.warn("[SVL-Tunnel] Could not connect to Tunnel Relay ({}). Retrying in 10s...", root.getMessage());
+                            }
                             scheduleReconnect(10);
                         } else {
                             this.activeWs = ws;
