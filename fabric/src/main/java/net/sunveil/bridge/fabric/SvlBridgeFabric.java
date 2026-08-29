@@ -65,7 +65,7 @@ public class SvlBridgeFabric implements DedicatedServerModInitializer {
 
         // Start Tunnel Client if enabled
         if (config.isTunnelEnabled()) {
-            int port = server.getPort() > 0 ? server.getPort() : config.getLocalServerPort();
+            int port = server.getServerPort() > 0 ? server.getServerPort() : config.getLocalServerPort();
             this.tunnelClient = new TunnelClient(config.getMasterApiUrl(), config.getServerKey(), config.getMasterApiToken(), port);
             this.tunnelClient.start();
         }

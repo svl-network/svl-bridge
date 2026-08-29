@@ -25,6 +25,7 @@ import net.sunveil.bridge.model.HeartbeatPayload;
 import net.sunveil.bridge.network.MasterApiClient;
 import net.sunveil.bridge.scanner.ModScanner;
 import net.sunveil.bridge.scanner.ModrinthService;
+import net.sunveil.bridge.tunnel.TunnelClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +45,7 @@ public class SvlBridgeForge {
     private final ModScanner modScanner;
     private final ModrinthService modrinthService;
     private final MasterApiClient masterApiClient;
+    private TunnelClient tunnelClient;
     private ScheduledExecutorService heartbeatScheduler;
 
     public SvlBridgeForge() {
@@ -64,6 +66,13 @@ public class SvlBridgeForge {
     public void onServerStarted(ServerStartedEvent event) {
         Object server = extractServer(event);
         LOGGER.info("[SVL-Bridge] Server started. Initiating background mod scan and manifest sync...");
+
+        // Start Tunnel Client if enabled
+        if (config.isTunnelEnabled()) {
+            int port = invokeInt(server, "getPort", config.getLocalServerPort());
+            this.tunnelClient = new TunnelClient(config.getMasterApiUrl(), config.getServerKey(), config.getMasterApiToken(), port > 0 ? port : config.getLocalServerPort());
+            this.tunnelClient.start();
+        }
 
         Path gameDir = FMLPaths.GAMEDIR.get();
 
@@ -181,7 +190,11 @@ public class SvlBridgeForge {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("[SVL-Bridge] Server stopping. Shutting down heartbeat scheduler...");
+        LOGGER.info("[SVL-Bridge] Server stopping. Shutting down heartbeat scheduler and tunnel...");
+
+        if (tunnelClient != null) {
+            tunnelClient.stop();
+        }
 
         if (heartbeatScheduler != null && !heartbeatScheduler.isShutdown()) {
             heartbeatScheduler.shutdown();
