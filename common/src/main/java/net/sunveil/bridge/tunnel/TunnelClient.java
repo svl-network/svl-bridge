@@ -156,11 +156,20 @@ public class TunnelClient implements WebSocket.Listener {
         try {
             JsonObject json = JsonParser.parseString(data.toString()).getAsJsonObject();
             if (json.has("type") && "TUNNEL_READY".equals(json.get("type").getAsString())) {
-                String host = json.get("publicHost").getAsString();
-                int port = json.get("publicPort").getAsInt();
+                String host = json.has("publicHost") ? json.get("publicHost").getAsString() : "realms.sunveil.net";
+                int port = json.has("publicPort") ? json.get("publicPort").getAsInt() : 25565;
+                int fallbackPort = json.has("fallbackPort") ? json.get("fallbackPort").getAsInt() : port;
+
                 LOGGER.info("=========================================================");
                 LOGGER.info("🛡️ [SVL-Tunnel] ONLINE! No Port-Forwarding required.");
-                LOGGER.info("🛡️ Players can join via Sunveil Connect or directly: {}:{}", host, port);
+                if (port == 25565) {
+                    LOGGER.info("🛡️ Players can join directly via: {}", host);
+                } else {
+                    LOGGER.info("🛡️ Players can join directly via: {}:{}", host, port);
+                }
+                if (fallbackPort != port && fallbackPort > 0) {
+                    LOGGER.info("🛡️ Fallback Direct Port: {}:{}", host, fallbackPort);
+                }
                 LOGGER.info("🛡️ Your home IP is fully protected and hidden.");
                 LOGGER.info("=========================================================");
             }
