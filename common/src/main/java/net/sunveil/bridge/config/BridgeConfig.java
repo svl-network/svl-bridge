@@ -37,6 +37,8 @@ public class BridgeConfig {
     private int publicPort = 25565;
     private String serverName = "Sunveil Modded Server";
     private int heartbeatIntervalSeconds = 30;
+    private boolean tunnelEnabled = true;
+    private int localServerPort = 25565;
 
     public BridgeConfig() {
     }
@@ -170,5 +172,21 @@ public class BridgeConfig {
 
     public void setHeartbeatIntervalSeconds(int heartbeatIntervalSeconds) {
         this.heartbeatIntervalSeconds = heartbeatIntervalSeconds;
+    }
+
+    public boolean isTunnelEnabled() {
+        return tunnelEnabled;
+    }
+
+    public void setTunnelEnabled(boolean tunnelEnabled) {
+        this.tunnelEnabled = tunnelEnabled;
+    }
+
+    public int getLocalServerPort() {
+        return localServerPort;
+    }
+
+    public void setLocalServerPort(int localServerPort) {
+        this.localServerPort = localServerPort;
     }
 }

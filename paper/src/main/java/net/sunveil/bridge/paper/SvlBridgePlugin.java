@@ -18,6 +18,7 @@ import net.sunveil.bridge.model.HeartbeatPayload;
 import net.sunveil.bridge.network.MasterApiClient;
 import net.sunveil.bridge.scanner.ModScanner;
 import net.sunveil.bridge.scanner.ModrinthService;
+import net.sunveil.bridge.tunnel.TunnelClient;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -30,6 +31,7 @@ public class SvlBridgePlugin extends JavaPlugin {
     private ModScanner modScanner;
     private ModrinthService modrinthService;
     private MasterApiClient masterApiClient;
+    private TunnelClient tunnelClient;
     private BukkitTask heartbeatTask;
 
     @Override
@@ -41,6 +43,13 @@ public class SvlBridgePlugin extends JavaPlugin {
         this.modScanner = new ModScanner();
         this.modrinthService = new ModrinthService();
         this.masterApiClient = new MasterApiClient();
+
+        // Initialize and start Outbound Tunnel if enabled
+        if (config.isTunnelEnabled()) {
+            int port = Bukkit.getPort() > 0 ? Bukkit.getPort() : config.getLocalServerPort();
+            this.tunnelClient = new TunnelClient(config.getMasterApiUrl(), config.getServerKey(), config.getMasterApiToken(), port);
+            this.tunnelClient.start();
+        }
 
         // Asynchronous initial scan and manifest resolution
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
@@ -124,6 +133,9 @@ public class SvlBridgePlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         getLogger().info("Disabling SVL Bridge...");
+        if (tunnelClient != null) {
+            tunnelClient.stop();
+        }
         if (heartbeatTask != null && !heartbeatTask.isCancelled()) {
             heartbeatTask.cancel();
         }
