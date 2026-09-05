@@ -52,7 +52,14 @@ public class TunnelClient implements WebSocket.Listener {
         return t;
     });
 
-    private final Map<Integer, Socket> localSockets = new ConcurrentHashMap<>();
+    private static class ClientSession {
+        final CompletableFuture<Socket> socketFuture = new CompletableFuture<>();
+        final ConcurrentLinkedQueue<byte[]> pendingData = new ConcurrentLinkedQueue<>();
+        volatile Socket socket;
+        volatile boolean closed = false;
+    }
+
+    private final Map<Integer, ClientSession> sessions = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private WebSocket activeWs;
 
@@ -81,10 +88,13 @@ public class TunnelClient implements WebSocket.Listener {
                 activeWs.sendClose(WebSocket.NORMAL_CLOSURE, "Plugin disabled").join();
             } catch (Exception ignored) {}
         }
-        for (Socket s : localSockets.values()) {
-            try { s.close(); } catch (Exception ignored) {}
+        for (ClientSession session : sessions.values()) {
+            session.closed = true;
+            if (session.socket != null) {
+                try { session.socket.close(); } catch (Exception ignored) {}
+            }
         }
-        localSockets.clear();
+        sessions.clear();
         scheduler.shutdownNow();
         ioThreadPool.shutdownNow();
         LOGGER.info("[SVL-Tunnel] Secure Tunnel stopped.");
@@ -139,7 +149,10 @@ public class TunnelClient implements WebSocket.Listener {
             String scheme = "https".equalsIgnoreCase(uri.getScheme()) ? "wss" : "ws";
             String host = uri.getHost() != null ? uri.getHost() : "localhost";
             int port = uri.getPort();
-            return port != -1 ? scheme + "://" + host + ":" + port : scheme + "://" + host;
+            if (port != -1 && port != 80 && port != 443) {
+                return String.format("%s://%s:%d", scheme, host, port);
+            }
+            return String.format("%s://%s", scheme, host);
         } catch (Exception e) {
             return "ws://localhost:3001";
         }
@@ -199,17 +212,27 @@ public class TunnelClient implements WebSocket.Listener {
     }
 
     private void handleClientOpen(int connId) {
+        ClientSession session = sessions.computeIfAbsent(connId, id -> new ClientSession());
         ioThreadPool.submit(() -> {
             try {
                 Socket localSocket = new Socket("127.0.0.1", localServerPort);
                 localSocket.setTcpNoDelay(true);
-                localSockets.put(connId, localSocket);
+                session.socket = localSocket;
+                session.socketFuture.complete(localSocket);
+
+                // Flush any early arriving packets that arrived while socket was connecting
+                OutputStream out = localSocket.getOutputStream();
+                byte[] queued;
+                while ((queued = session.pendingData.poll()) != null) {
+                    out.write(queued);
+                }
+                out.flush();
 
                 InputStream in = localSocket.getInputStream();
                 byte[] buffer = new byte[8192];
                 int read;
 
-                while (running.get() && (read = in.read(buffer)) != -1) {
+                while (running.get() && !session.closed && (read = in.read(buffer)) != -1) {
                     if (activeWs != null) {
                         ByteBuffer frame = ByteBuffer.allocate(5 + read);
                         frame.put(PKT_DATA);
@@ -219,7 +242,8 @@ public class TunnelClient implements WebSocket.Listener {
                         activeWs.sendBinary(frame, true);
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                session.socketFuture.completeExceptionally(e);
             } finally {
                 handleClientClose(connId);
             }
@@ -227,22 +251,44 @@ public class TunnelClient implements WebSocket.Listener {
     }
 
     private void handleClientData(int connId, byte[] chunk) {
-        Socket localSocket = localSockets.get(connId);
-        if (localSocket != null && !localSocket.isClosed()) {
+        ClientSession session = sessions.get(connId);
+        if (session == null || session.closed) {
+            return;
+        }
+
+        if (session.socket != null && !session.socket.isClosed()) {
             try {
-                OutputStream out = localSocket.getOutputStream();
+                OutputStream out = session.socket.getOutputStream();
                 out.write(chunk);
                 out.flush();
             } catch (Exception e) {
                 handleClientClose(connId);
             }
+        } else {
+            // Buffer packet so initial handshake is NEVER lost while TCP socket connects
+            session.pendingData.add(chunk);
+            session.socketFuture.thenAccept(socket -> {
+                try {
+                    OutputStream out = socket.getOutputStream();
+                    byte[] queued;
+                    while ((queued = session.pendingData.poll()) != null) {
+                        out.write(queued);
+                    }
+                    out.flush();
+                } catch (Exception e) {
+                    handleClientClose(connId);
+                }
+            });
         }
     }
 
     private void handleClientClose(int connId) {
-        Socket socket = localSockets.remove(connId);
-        if (socket != null) {
-            try { socket.close(); } catch (Exception ignored) {}
+        ClientSession session = sessions.remove(connId);
+        if (session != null) {
+            session.closed = true;
+            if (session.socket != null) {
+                try { session.socket.close(); } catch (Exception ignored) {}
+            }
         }
         if (activeWs != null) {
             ByteBuffer closeFrame = ByteBuffer.allocate(5);
