@@ -31,7 +31,7 @@ public class BridgeConfig {
     public static final String DEFAULT_CONFIG_FILE = "svl-bridge.json";
 
     private String masterApiUrl = "https://realms.sunveil.net/api/v1/heartbeat";
-    private String masterApiToken = "svl_secret_token_2026";
+    private String masterApiToken = "";
     private String serverKey = "svl_demo_realm";
     private String publicIp = "auto";
     private int publicPort = 25565;
@@ -51,6 +51,8 @@ public class BridgeConfig {
         Path configPath = configDir.resolve(fileName != null ? fileName : DEFAULT_CONFIG_FILE);
         if (configPath == null || !Files.exists(configPath)) {
             BridgeConfig defaultConfig = new BridgeConfig();
+            defaultConfig.applyEnvironmentOverrides();
+            defaultConfig.validateAndSetDefaults();
             if (configPath != null) {
                 defaultConfig.save(configDir, fileName);
             }
@@ -62,13 +64,43 @@ public class BridgeConfig {
             if (config == null) {
                 config = new BridgeConfig();
             }
+            config.applyEnvironmentOverrides();
             config.validateAndSetDefaults();
             return config;
         } catch (Exception e) {
             LOGGER.error("Failed to load config from {}. Using defaults.", configPath, e);
             BridgeConfig fallback = new BridgeConfig();
+            fallback.applyEnvironmentOverrides();
+            fallback.validateAndSetDefaults();
             fallback.save(configDir, fileName);
             return fallback;
+        }
+    }
+
+    public void applyEnvironmentOverrides() {
+        String envUrl = System.getenv("SVL_MASTER_API_URL");
+        if (envUrl != null && !envUrl.isBlank()) {
+            this.masterApiUrl = envUrl.trim();
+        }
+        String envToken = System.getenv("SVL_MASTER_API_TOKEN");
+        if (envToken != null && !envToken.isBlank()) {
+            this.masterApiToken = envToken.trim();
+        }
+        String envKey = System.getenv("SVL_SERVER_KEY");
+        if (envKey != null && !envKey.isBlank()) {
+            this.serverKey = envKey.trim();
+        }
+        String envIp = System.getenv("SVL_PUBLIC_IP");
+        if (envIp != null && !envIp.isBlank()) {
+            this.publicIp = envIp.trim();
+        }
+        String envName = System.getenv("SVL_SERVER_NAME");
+        if (envName != null && !envName.isBlank()) {
+            this.serverName = envName.trim();
+        }
+        String envTunnel = System.getenv("SVL_TUNNEL_ENABLED");
+        if (envTunnel != null && !envTunnel.isBlank()) {
+            this.tunnelEnabled = Boolean.parseBoolean(envTunnel.trim());
         }
     }
 
@@ -98,8 +130,8 @@ public class BridgeConfig {
         if (masterApiUrl == null || masterApiUrl.isBlank()) {
             masterApiUrl = "https://realms.sunveil.net/api/v1/heartbeat";
         }
-        if (masterApiToken == null || masterApiToken.isBlank()) {
-            masterApiToken = "svl_secret_token_2026";
+        if (masterApiToken == null) {
+            masterApiToken = "";
         }
         if (serverKey == null || serverKey.isBlank()) {
             serverKey = "svl_demo_realm";
