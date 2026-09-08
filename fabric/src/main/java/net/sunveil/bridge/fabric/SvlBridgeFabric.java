@@ -54,6 +54,15 @@ public class SvlBridgeFabric implements DedicatedServerModInitializer {
         this.modrinthService = new ModrinthService();
         this.masterApiClient = new MasterApiClient();
 
+        // Background Auto-Update Check
+        if (config.isAutoUpdateEnabled()) {
+            new net.sunveil.bridge.updater.BridgeAutoUpdater(
+                config.getMasterApiUrl(), 
+                "fabric", 
+                FabricLoader.getInstance().getGameDir()
+            ).checkAndApplyUpdateAsync();
+        }
+
         ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(this::onServerStopping);
 

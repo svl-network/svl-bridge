@@ -19,6 +19,7 @@ import net.sunveil.bridge.network.MasterApiClient;
 import net.sunveil.bridge.scanner.ModScanner;
 import net.sunveil.bridge.scanner.ModrinthService;
 import net.sunveil.bridge.tunnel.TunnelClient;
+import net.sunveil.bridge.updater.BridgeAutoUpdater;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -43,6 +44,14 @@ public class SvlBridgePlugin extends JavaPlugin {
         this.modScanner = new ModScanner();
         this.modrinthService = new ModrinthService();
         this.masterApiClient = new MasterApiClient();
+
+        // Background Auto-Update Check
+        if (config.isAutoUpdateEnabled()) {
+            Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+                BridgeAutoUpdater updater = new BridgeAutoUpdater(config.getMasterApiUrl(), "paper", Path.of(".").toAbsolutePath().normalize());
+                updater.checkAndApplyUpdateAsync();
+            });
+        }
 
         // Initialize and start Outbound Tunnel if enabled
         if (config.isTunnelEnabled()) {

@@ -39,6 +39,7 @@ public class BridgeConfig {
     private int heartbeatIntervalSeconds = 30;
     private boolean tunnelEnabled = true;
     private int localServerPort = 25565;
+    private boolean autoUpdateEnabled = true;
 
     private static final String[] ADJECTIVES = {
         "swift", "shadow", "mystic", "cosmic", "solar", "lunar", "crystal", "frost",
@@ -311,5 +312,13 @@ public class BridgeConfig {
 
     public void setLocalServerPort(int localServerPort) {
         this.localServerPort = localServerPort;
+    }
+
+    public boolean isAutoUpdateEnabled() {
+        return autoUpdateEnabled;
+    }
+
+    public void setAutoUpdateEnabled(boolean autoUpdateEnabled) {
+        this.autoUpdateEnabled = autoUpdateEnabled;
     }
 }

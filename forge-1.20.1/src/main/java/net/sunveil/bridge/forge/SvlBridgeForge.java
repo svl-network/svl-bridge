@@ -57,6 +57,15 @@ public class SvlBridgeForge {
         this.modrinthService = new ModrinthService();
         this.masterApiClient = new MasterApiClient();
 
+        // Background Auto-Update Check
+        if (config.isAutoUpdateEnabled()) {
+            new net.sunveil.bridge.updater.BridgeAutoUpdater(
+                config.getMasterApiUrl(), 
+                "forge-1.20.1", 
+                FMLPaths.GAMEDIR.get()
+            ).checkAndApplyUpdateAsync();
+        }
+
         MinecraftForge.EVENT_BUS.register(this);
 
         LOGGER.info("[SVL-Bridge] Forge 1.20.1 Bridge initialized. Server key: {}", config.getServerKey());

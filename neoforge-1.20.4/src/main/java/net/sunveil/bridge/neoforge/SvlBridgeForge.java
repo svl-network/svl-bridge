@@ -57,6 +57,15 @@ public class SvlBridgeForge {
         this.modrinthService = new ModrinthService();
         this.masterApiClient = new MasterApiClient();
 
+        // Background Auto-Update Check
+        if (config.isAutoUpdateEnabled()) {
+            new net.sunveil.bridge.updater.BridgeAutoUpdater(
+                config.getMasterApiUrl(), 
+                "neoforge-1.20.4", 
+                FMLPaths.GAMEDIR.get()
+            ).checkAndApplyUpdateAsync();
+        }
+
         NeoForge.EVENT_BUS.addListener(this::onServerStarted);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
 
