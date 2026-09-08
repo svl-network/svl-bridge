@@ -103,15 +103,15 @@ public class BridgeConfig {
             }
         }
 
+        final String actualFileName = configPath.getFileName().toString();
+
         if (configPath == null || !Files.exists(configPath)) {
             BridgeConfig defaultConfig = new BridgeConfig();
             defaultConfig.serverKey = generateRandomServerKey();
             defaultConfig.serverName = "Sunveil Realm (" + defaultConfig.serverKey + ")";
             defaultConfig.applyEnvironmentOverrides();
             defaultConfig.validateAndSetDefaults();
-            if (configPath != null) {
-                defaultConfig.save(configDir, targetName);
-            }
+            defaultConfig.save(configDir, actualFileName);
             return defaultConfig;
         }
 
@@ -123,7 +123,7 @@ public class BridgeConfig {
             config.applyEnvironmentOverrides();
             boolean modified = config.validateAndSetDefaults();
             if (modified) {
-                config.save(configDir, targetName);
+                config.save(configDir, actualFileName);
             }
             return config;
         } catch (Exception e) {
@@ -133,7 +133,7 @@ public class BridgeConfig {
             fallback.serverName = "Sunveil Realm (" + fallback.serverKey + ")";
             fallback.applyEnvironmentOverrides();
             fallback.validateAndSetDefaults();
-            fallback.save(configDir, targetName);
+            fallback.save(configDir, actualFileName);
             return fallback;
         }
     }
