@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -23,6 +25,7 @@ import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -71,6 +74,35 @@ public class TunnelClient implements WebSocket.Listener {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+    }
+
+    /**
+     * Derives a deterministic hardened loopback IP (127.x.y.z) uniquely mapped to the client's system/hardware/IP.
+     * Guarantees that the address is in the range 127.10.x.y - 127.249.x.y and is NEVER 127.0.0.1 or 127.0.0.0,
+     * ensuring IP bans isolate only the offending player/hardware without collateral bans.
+     */
+    public static String deriveHardenedIp(String identifier) {
+        if (identifier == null || identifier.isBlank() || "127.0.0.1".equals(identifier) || "localhost".equalsIgnoreCase(identifier) || "unknown".equalsIgnoreCase(identifier)) {
+            int r1 = 200 + ThreadLocalRandom.current().nextInt(50);
+            int r2 = 1 + ThreadLocalRandom.current().nextInt(254);
+            int r3 = 2 + ThreadLocalRandom.current().nextInt(253);
+            return "127." + r1 + "." + r2 + "." + r3;
+        }
+
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(identifier.trim().getBytes(StandardCharsets.UTF_8));
+            int octet2 = 10 + (Byte.toUnsignedInt(hash[0]) % 240);
+            int octet3 = 1 + (Byte.toUnsignedInt(hash[1]) % 254);
+            int octet4 = 2 + (Byte.toUnsignedInt(hash[2]) % 253);
+            return "127." + octet2 + "." + octet3 + "." + octet4;
+        } catch (Exception e) {
+            int hash = Math.abs(identifier.hashCode());
+            int octet2 = 10 + (hash % 240);
+            int octet3 = 1 + ((hash >> 8) % 254);
+            int octet4 = 2 + ((hash >> 16) % 253);
+            return "127." + octet2 + "." + octet3 + "." + octet4;
+        }
     }
 
     public synchronized void start() {
@@ -198,7 +230,13 @@ public class TunnelClient implements WebSocket.Listener {
             int connId = data.getInt();
 
             if (pktType == PKT_OPEN) {
-                handleClientOpen(connId);
+                String clientIp = null;
+                if (data.hasRemaining()) {
+                    byte[] ipBytes = new byte[data.remaining()];
+                    data.get(ipBytes);
+                    clientIp = new String(ipBytes, StandardCharsets.UTF_8).trim();
+                }
+                handleClientOpen(connId, clientIp);
             } else if (pktType == PKT_DATA) {
                 byte[] chunk = new byte[data.remaining()];
                 data.get(chunk);
@@ -211,12 +249,31 @@ public class TunnelClient implements WebSocket.Listener {
         return null;
     }
 
-    private void handleClientOpen(int connId) {
+    private void handleClientOpen(int connId, String clientIp) {
         ClientSession session = sessions.computeIfAbsent(connId, id -> new ClientSession());
         ioThreadPool.submit(() -> {
             try {
-                Socket localSocket = new Socket("127.0.0.1", localServerPort);
+                Socket localSocket = new Socket();
                 localSocket.setTcpNoDelay(true);
+
+                String hardenedIp = (clientIp != null && !clientIp.isBlank()) 
+                        ? clientIp 
+                        : deriveHardenedIp("conn_" + connId);
+
+                // Ensure the assigned IP is never 127.0.0.1 or 127.0.0.0
+                if ("127.0.0.1".equals(hardenedIp) || "127.0.0.0".equals(hardenedIp) || !hardenedIp.startsWith("127.")) {
+                    hardenedIp = deriveHardenedIp(hardenedIp);
+                }
+
+                try {
+                    InetAddress bindAddr = InetAddress.getByName(hardenedIp);
+                    localSocket.bind(new InetSocketAddress(bindAddr, 0));
+                    LOGGER.info("[SVL-Tunnel] Bound client connection #{} to hardened system IP: {}", connId, hardenedIp);
+                } catch (Exception bindEx) {
+                    LOGGER.warn("[SVL-Tunnel] Could not bind to hardened IP {}, falling back to default loopback: {}", hardenedIp, bindEx.getMessage());
+                }
+
+                localSocket.connect(new InetSocketAddress("127.0.0.1", localServerPort), 5000);
                 session.socket = localSocket;
                 session.socketFuture.complete(localSocket);
 

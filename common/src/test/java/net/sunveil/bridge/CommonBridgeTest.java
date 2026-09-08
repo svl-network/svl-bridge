@@ -248,4 +248,67 @@ public class CommonBridgeTest {
             server.stop(0);
         }
     }
+
+    @Test
+    void testHardenedIpDerivationDeterminismAndSafety() {
+        String ip1 = net.sunveil.bridge.tunnel.TunnelClient.deriveHardenedIp("user_hwid_987654321");
+        String ip2 = net.sunveil.bridge.tunnel.TunnelClient.deriveHardenedIp("user_hwid_987654321");
+        String ip3 = net.sunveil.bridge.tunnel.TunnelClient.deriveHardenedIp("user_hwid_123456789");
+
+        assertNotNull(ip1);
+        assertNotNull(ip2);
+        assertNotNull(ip3);
+
+        // Deterministic: Same HWID/identity yields the exact same hardened IP
+        assertEquals(ip1, ip2);
+
+        // Different HWID yields a distinct hardened IP
+        assertNotEquals(ip1, ip3);
+
+        // Must start with 127. loopback prefix
+        assertTrue(ip1.startsWith("127."));
+        assertTrue(ip3.startsWith("127."));
+
+        // Must NEVER be 127.0.0.1 or 127.0.0.0 to prevent server-wide collateral bans
+        assertNotEquals("127.0.0.1", ip1);
+        assertNotEquals("127.0.0.0", ip1);
+        assertNotEquals("127.0.0.1", ip3);
+        assertNotEquals("127.0.0.0", ip3);
+
+        // Fallbacks for null or local IPs must also be valid hardened loopbacks and not 127.0.0.1
+        String fallback1 = net.sunveil.bridge.tunnel.TunnelClient.deriveHardenedIp("127.0.0.1");
+        String fallback2 = net.sunveil.bridge.tunnel.TunnelClient.deriveHardenedIp(null);
+        assertTrue(fallback1.startsWith("127."));
+        assertNotEquals("127.0.0.1", fallback1);
+        assertTrue(fallback2.startsWith("127."));
+        assertNotEquals("127.0.0.1", fallback2);
+    }
+
+    @Test
+    void testHardenedIpSocketBindingIsolation() throws Exception {
+        java.net.ServerSocket server = new java.net.ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"));
+        int port = server.getLocalPort();
+
+        AtomicReference<String> remoteAddress = new AtomicReference<>();
+        Thread serverThread = new Thread(() -> {
+            try {
+                java.net.Socket accepted = server.accept();
+                remoteAddress.set(accepted.getRemoteSocketAddress().toString());
+                accepted.close();
+            } catch (Exception ignored) {}
+        });
+        serverThread.start();
+
+        String hardenedIp = net.sunveil.bridge.tunnel.TunnelClient.deriveHardenedIp("test_player_identity_abc");
+        java.net.Socket client = new java.net.Socket();
+        client.bind(new InetSocketAddress(java.net.InetAddress.getByName(hardenedIp), 0));
+        client.connect(new InetSocketAddress("127.0.0.1", port), 2000);
+        client.close();
+        serverThread.join(2000);
+        server.close();
+
+        assertNotNull(remoteAddress.get());
+        assertTrue(remoteAddress.get().contains(hardenedIp), "Server must observe connection directly from hardened IP " + hardenedIp);
+        assertFalse(remoteAddress.get().contains("127.0.0.1:"), "Server must NOT observe connection from shared 127.0.0.1");
+    }
 }
