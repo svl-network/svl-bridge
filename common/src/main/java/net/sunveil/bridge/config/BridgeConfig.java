@@ -40,7 +40,50 @@ public class BridgeConfig {
     private boolean tunnelEnabled = true;
     private int localServerPort = 25565;
 
+    private static final String[] ADJECTIVES = {
+        "swift", "shadow", "mystic", "cosmic", "solar", "lunar", "crystal", "frost",
+        "ember", "golden", "silent", "ancient", "storm", "valiant", "blazing",
+        "emerald", "iron", "radiant", "stellar", "noble", "vortex", "astral",
+        "hidden", "prime", "wild", "epic", "azure", "crimson", "phantom"
+    };
+
+    private static final String[] NOUNS = {
+        "realm", "haven", "creeper", "dragon", "citadel", "valley", "sanctum", "outpost",
+        "summit", "dominion", "stronghold", "bastion", "frontier", "peak", "oasis",
+        "shelter", "temple", "refuge", "keep", "island", "forest", "cavern",
+        "nexus", "canyon", "spire", "grove", "garrison"
+    };
+
     public BridgeConfig() {
+    }
+
+    /**
+     * Generates a unique, friendly Minecraft-themed random server key (e.g. "swift-dragon-482")
+     */
+    public static String generateRandomServerKey() {
+        int adjIdx = java.util.concurrent.ThreadLocalRandom.current().nextInt(ADJECTIVES.length);
+        int nounIdx = java.util.concurrent.ThreadLocalRandom.current().nextInt(NOUNS.length);
+        int number = 100 + java.util.concurrent.ThreadLocalRandom.current().nextInt(900);
+        return ADJECTIVES[adjIdx] + "-" + NOUNS[nounIdx] + "-" + number;
+    }
+
+    /**
+     * Checks whether a string resembles an API token, license key, or JWT secret rather than a friendly server key
+     */
+    public static boolean isTokenLike(String str) {
+        if (str == null || str.isBlank()) {
+            return false;
+        }
+        String s = str.trim();
+        if (s.startsWith("Bearer ") || s.startsWith("SVL-") || s.startsWith("svl_") ||
+            s.startsWith("eyJ") || s.startsWith("sk_") || s.startsWith("token_") || s.startsWith("secret_")) {
+            return true;
+        }
+        // Long random hex/uuid/base64 strings (>= 30 chars without hyphens between words or containing multiple dots/underscores)
+        if (s.length() >= 30 && (s.matches("^[a-fA-F0-9]{32,}$") || s.contains("."))) {
+            return true;
+        }
+        return false;
     }
 
     public static BridgeConfig load(Path configDir) {
@@ -48,13 +91,26 @@ public class BridgeConfig {
     }
 
     public static BridgeConfig load(Path configDir, String fileName) {
-        Path configPath = configDir.resolve(fileName != null ? fileName : DEFAULT_CONFIG_FILE);
+        String targetName = fileName != null ? fileName : DEFAULT_CONFIG_FILE;
+        Path configPath = configDir.resolve(targetName);
+
+        // Also check fallback filenames if target doesn't exist
+        if (!Files.exists(configPath)) {
+            if ("config.json".equals(targetName) && Files.exists(configDir.resolve("svl-bridge.json"))) {
+                configPath = configDir.resolve("svl-bridge.json");
+            } else if ("svl-bridge.json".equals(targetName) && Files.exists(configDir.resolve("config.json"))) {
+                configPath = configDir.resolve("config.json");
+            }
+        }
+
         if (configPath == null || !Files.exists(configPath)) {
             BridgeConfig defaultConfig = new BridgeConfig();
+            defaultConfig.serverKey = generateRandomServerKey();
+            defaultConfig.serverName = "Sunveil Realm (" + defaultConfig.serverKey + ")";
             defaultConfig.applyEnvironmentOverrides();
             defaultConfig.validateAndSetDefaults();
             if (configPath != null) {
-                defaultConfig.save(configDir, fileName);
+                defaultConfig.save(configDir, targetName);
             }
             return defaultConfig;
         }
@@ -65,14 +121,19 @@ public class BridgeConfig {
                 config = new BridgeConfig();
             }
             config.applyEnvironmentOverrides();
-            config.validateAndSetDefaults();
+            boolean modified = config.validateAndSetDefaults();
+            if (modified) {
+                config.save(configDir, targetName);
+            }
             return config;
         } catch (Exception e) {
-            LOGGER.error("Failed to load config from {}. Using defaults.", configPath, e);
+            LOGGER.error("Failed to load config from {}. Generating new valid configuration.", configPath, e);
             BridgeConfig fallback = new BridgeConfig();
+            fallback.serverKey = generateRandomServerKey();
+            fallback.serverName = "Sunveil Realm (" + fallback.serverKey + ")";
             fallback.applyEnvironmentOverrides();
             fallback.validateAndSetDefaults();
-            fallback.save(configDir, fileName);
+            fallback.save(configDir, targetName);
             return fallback;
         }
     }
@@ -126,28 +187,58 @@ public class BridgeConfig {
         }
     }
 
-    public void validateAndSetDefaults() {
+    /**
+     * Validates and normalizes all fields. Returns true if any field was corrected or regenerated.
+     */
+    public boolean validateAndSetDefaults() {
+        boolean modified = false;
+
         if (masterApiUrl == null || masterApiUrl.isBlank()) {
             masterApiUrl = "https://realms.sunveil.net/api/v1/heartbeat";
+            modified = true;
         }
         if (masterApiToken == null) {
             masterApiToken = "";
+            modified = true;
         }
-        if (serverKey == null || serverKey.isBlank()) {
-            serverKey = "svl_demo_realm";
+
+        // Safety Guard: Prevent user from accidentally configuring their secret masterApiToken as serverKey
+        if (isTokenLike(serverKey)) {
+            if (masterApiToken.isBlank()) {
+                masterApiToken = serverKey.trim();
+                LOGGER.info("[SVL-Config] Migrated secret token from serverKey field to masterApiToken.");
+            }
+            serverKey = generateRandomServerKey();
+            modified = true;
+            LOGGER.warn("[SVL-Config] Protected master key from being exposed as serverKey. Assigned safe random key: {}", serverKey);
+        } else if (serverKey != null && !serverKey.isBlank() && serverKey.trim().equalsIgnoreCase(masterApiToken.trim()) && !masterApiToken.isBlank()) {
+            serverKey = generateRandomServerKey();
+            modified = true;
+            LOGGER.warn("[SVL-Config] serverKey cannot match masterApiToken. Assigned new random key: {}", serverKey);
+        } else if (serverKey == null || serverKey.isBlank() || "svl_demo_realm".equalsIgnoreCase(serverKey.trim()) || "default".equalsIgnoreCase(serverKey.trim())) {
+            serverKey = generateRandomServerKey();
+            modified = true;
+            LOGGER.info("[SVL-Config] Generated initial unique random serverKey: {}", serverKey);
         }
+
         if (publicIp == null || publicIp.isBlank() || "java.sunveil.net".equalsIgnoreCase(publicIp)) {
             publicIp = "auto";
+            modified = true;
         }
         if (publicPort <= 0 || publicPort > 65535) {
             publicPort = 25565;
+            modified = true;
         }
-        if (serverName == null || serverName.isBlank()) {
-            serverName = "Sunveil Modded Server";
+        if (serverName == null || serverName.isBlank() || "Sunveil Modded Server".equals(serverName)) {
+            serverName = "Sunveil Realm (" + serverKey + ")";
+            modified = true;
         }
         if (heartbeatIntervalSeconds <= 0) {
             heartbeatIntervalSeconds = 30;
+            modified = true;
         }
+
+        return modified;
     }
 
     public String getMasterApiUrl() {

@@ -45,10 +45,13 @@ public class CommonBridgeTest {
         assertNotNull(config);
         assertEquals("https://realms.sunveil.net/api/v1/heartbeat", config.getMasterApiUrl());
         assertEquals("", config.getMasterApiToken());
-        assertEquals("svl_demo_realm", config.getServerKey());
+        // Server key should be automatically generated and never the static demo default
+        assertNotNull(config.getServerKey());
+        assertNotEquals("svl_demo_realm", config.getServerKey());
+        assertTrue(config.getServerKey().matches("^[a-z]+-[a-z]+-[0-9]{3}$"), "Server key should match word-word-number format");
         assertEquals("auto", config.getPublicIp());
         assertEquals(25565, config.getPublicPort());
-        assertEquals("Sunveil Modded Server", config.getServerName());
+        assertTrue(config.getServerName().contains(config.getServerKey()));
         assertEquals(30, config.getHeartbeatIntervalSeconds());
 
         BridgeConfig bukkitConfig = BridgeConfig.load(tempDir, "config.json");
@@ -62,6 +65,35 @@ public class CommonBridgeTest {
         assertEquals("Custom Bukkit Realm", reloaded.getServerName());
         assertEquals("custom_secret_999", reloaded.getMasterApiToken());
         assertEquals(25570, reloaded.getPublicPort());
+    }
+
+    @Test
+    void testTokenProtectionAndRandomKeyGeneration(@TempDir Path tempDir) {
+        // Test random key format and uniqueness
+        String key1 = BridgeConfig.generateRandomServerKey();
+        String key2 = BridgeConfig.generateRandomServerKey();
+        assertNotNull(key1);
+        assertNotNull(key2);
+        assertTrue(key1.matches("^[a-z]+-[a-z]+-[0-9]{3}$"));
+        assertFalse(BridgeConfig.isTokenLike(key1));
+
+        // Test token detection
+        assertTrue(BridgeConfig.isTokenLike("SVL-FREE-1234-5678-ABCD"));
+        assertTrue(BridgeConfig.isTokenLike("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xyz"));
+        assertTrue(BridgeConfig.isTokenLike("svl_token_9999999999999999999999999"));
+        assertTrue(BridgeConfig.isTokenLike("d821ffb8295ca621302a0b8fe7421405af16bceb"));
+        assertFalse(BridgeConfig.isTokenLike("swift-dragon-482"));
+        assertFalse(BridgeConfig.isTokenLike("my-custom-realm"));
+
+        // Test auto-migration if user accidentally enters their master token into serverKey field
+        BridgeConfig accidentalConfig = new BridgeConfig();
+        accidentalConfig.setServerKey("SVL-FREE-9876-5432-WXYZ");
+        accidentalConfig.setMasterApiToken("");
+        boolean modified = accidentalConfig.validateAndSetDefaults();
+        assertTrue(modified);
+        assertEquals("SVL-FREE-9876-5432-WXYZ", accidentalConfig.getMasterApiToken());
+        assertNotEquals("SVL-FREE-9876-5432-WXYZ", accidentalConfig.getServerKey());
+        assertTrue(accidentalConfig.getServerKey().matches("^[a-z]+-[a-z]+-[0-9]{3}$"));
     }
 
     @Test
